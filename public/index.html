@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Video Downloader</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f0f0f0; }
+        .container { text-align: center; background-color: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        input[type="text"] { width: 300px; padding: 0.5rem; }
+        button { padding: 0.5rem 1rem; }
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .loading-overlay.active {
+            display: flex;
+        }
+        .spinner {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #3498db;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>YouTube Video Downloader</h1>
+        <form id="downloadForm" action="/download" method="POST" enctype="application/x-www-form-urlencoded">
+            <input type="text" name="url" placeholder="Enter YouTube Video URL" required>
+            <button type="submit">Download</button>
+        </form>
+    </div>
+    <!-- Remove the iframe, not needed for AJAX download -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div>
+            <div class="spinner"></div>
+            <p style="color:white; margin-top:1rem;">Preparing your download...</p>
+        </div>
+    </div>
+    <script>
+        const form = document.getElementById('downloadForm');
+        const overlay = document.getElementById('loadingOverlay');
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            overlay.classList.add('active');
+            form.querySelector('button[type="submit"]').disabled = true;
+
+            const formData = new FormData(form);
+            try {
+                const response = await fetch('/download', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    alert('Error: ' + errorText);
+                    overlay.classList.remove('active');
+                    form.querySelector('button[type="submit"]').disabled = false;
+                    return;
+                }
+                // Get filename from Content-Disposition header
+                const disposition = response.headers.get('Content-Disposition');
+                let filename = 'video.mp4';
+                if (disposition && disposition.indexOf('filename=') !== -1) {
+                    filename = disposition.split('filename=')[1].replace(/"/g, '').trim();
+                }
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                }, 100);
+            } catch (err) {
+                alert('Download failed.');
+            } finally {
+                overlay.classList.remove('active');
+                form.querySelector('button[type="submit"]').disabled = false;
+            }
+        });
+    </script>
+</body>
+</html> 
