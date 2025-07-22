@@ -60,7 +60,14 @@ app.post('/download', multer().none(), async (req, res) => {
     }
 
     try {
-        const info = await ytdl.getInfo(videoUrl);
+        const info = await ytdl.getInfo(videoUrl, {
+            requestOptions: {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+                    'Accept-Language': 'en-US,en;q=0.9'
+                }
+            }
+        });
         const title = info.videoDetails.title.replace(/[<>:"/\\|?*]+/g, '');
         const videoStream = ytdl(videoUrl, { filter: 'videoonly' });
         const audioStream = ytdl(videoUrl, { filter: 'audioonly' });
@@ -102,18 +109,24 @@ app.post('/download', multer().none(), async (req, res) => {
                 });
             })
             .on('error', (err) => {
-                console.error(err);
+                console.error('FFmpeg error:', err);
                 fs.unlinkSync(videoPath);
                 fs.unlinkSync(audioPath);
                 res.status(500).send('Error processing video');
             });
 
     } catch (error) {
-        console.error(error);
-        res.status(500).send('Error fetching video info');
+        console.error('Detailed error:', error);
+        if (error.message && error.message.includes('This video is unavailable')) {
+            res.status(404).send('This video is unavailable or restricted.');
+        } else if (error.message && error.message.includes('Could not extract video metadata')) {
+            res.status(500).send('Could not extract video metadata. Try another video.');
+        } else {
+            res.status(500).send('Error fetching video info. The video may be restricted or blocked.');
+        }
     }
 });
 
 app.listen(port, () => {
     console.log(`Server is running at http://localhost:${port}`);
-}); 
+});
